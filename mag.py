@@ -41,18 +41,17 @@ def dodaj_towar(nazwa, ilosc, kategoria):
         })
     st.success(f"Zaktualizowano stan: {nazwa}")
 
-def odejmij_ilosc(indeks, ilosc_do_odjecia):
+def odejmij_ilosc(towar_obj, ilosc_do_odjecia):
     teraz = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    towar = st.session_state['towary'][indeks]
     
-    if ilosc_do_odjecia >= towar['ilosc']:
-        nazwa_temp = towar['nazwa']
-        st.session_state['towary'].pop(indeks)
-        st.success(f"Towar {nazwa_temp} został całkowicie wydany i usunięty z listy.")
+    if ilosc_do_odjecia >= towar_obj['ilosc']:
+        nazwa_temp = towar_obj['nazwa']
+        st.session_state['towary'].remove(towar_obj)
+        st.success(f"Towar {nazwa_temp} został całkowicie wydany.")
     else:
-        towar['ilosc'] -= ilosc_do_odjecia
-        towar['ostatnia_aktualizacja'] = teraz
-        st.success(f"Wydano {ilosc_do_odjecia} szt. towaru {towar['nazwa']}. Pozostało: {towar['ilosc']}")
+        towar_obj['ilosc'] -= ilosc_do_odjecia
+        towar_obj['ostatnia_aktualizacja'] = teraz
+        st.success(f"Wydano {ilosc_do_odjecia} szt. Pozostało: {towar_obj['ilosc']}")
 
 # --- Interfejs Użytkownika Streamlit ---
 
@@ -72,38 +71,50 @@ with st.form("form_dodaj", clear_on_submit=True):
         dodaj_towar(nazwa_dodaj, ilosc_dodaj, kategoria_dodaj)
         st.rerun()
 
-# 2. Wydawanie Towaru (Poprawiona sekcja)
+# 2. Wydawanie Towaru z Wyszukiwarką
 st.header("➖ Wydaj z Magazynu")
-if st.session_state['towary']:
-    # Tworzymy listę opcji do wyboru
-    opcje_wyswietlane = [
-        f"{t['nazwa']} | {t['kategoria']} | Stan: {t['ilosc']}" 
-        for t in st.session_state['towary']
-    ]
-    
-    # Wybór towaru POZA formularzem, aby dynamicznie pobrać max_value
-    wybrany_indeks = st.selectbox(
-        "Wybierz towar do wydania", 
-        options=range(len(opcje_wyswietlane)), 
-        format_func=lambda x: opcje_wyswietlane[x],
-        key="wybor_towaru_wydaj"
-    )
-    
-    # Pobieramy aktualny towar na podstawie wyboru
-    towar_do_edycji = st.session_state['towary'][wybrany_indeks]
-    max_do_wydania = towar_do_edycji['ilosc']
 
-    with st.form("form_wydaj", clear_on_submit=True):
-        ilosc_usun = st.number_input(
-            f"Ile sztuk wydać? (Maksymalnie: {max_do_wydania})", 
-            min_value=1, 
-            max_value=max_do_wydania, 
-            step=1
+if st.session_state['towary']:
+    # --- SEKCA WYSZUKIWANIA ---
+    search_query = st.text_input("🔍 Wyszukaj towar (wpisz nazwę)", key="search_input").lower()
+    
+    # Filtrowanie listy na podstawie wyszukiwania
+    filtered_items = [
+        t for t in st.session_state['towary'] 
+        if search_query in t['nazwa'].lower() or search_query in t['kategoria'].lower()
+    ]
+
+    if filtered_items:
+        # Tworzymy listę etykiet dla przefiltrowanych towarów
+        opcje_wyswietlane = [
+            f"{t['nazwa']} | {t['kategoria']} | Stan: {t['ilosc']}" 
+            for t in filtered_items
+        ]
+        
+        wybrany_tekst = st.selectbox(
+            "Wybierz towar z listy", 
+            options=opcje_wyswietlane,
+            key="wybor_towaru_wydaj"
         )
         
-        if st.form_submit_button("Potwierdź wydanie"):
-            odejmij_ilosc(wybrany_indeks, ilosc_usun)
-            st.rerun()
+        # Pobieramy obiekt towaru na podstawie wybranego tekstu
+        idx = opcje_wyswietlane.index(wybrany_tekst)
+        towar_do_edycji = filtered_items[idx]
+        max_do_wydania = towar_do_edycji['ilosc']
+
+        with st.form("form_wydaj", clear_on_submit=True):
+            ilosc_usun = st.number_input(
+                f"Ile sztuk wydać? (Dostępne: {max_do_wydania})", 
+                min_value=1, 
+                max_value=max_do_wydania, 
+                step=1
+            )
+            
+            if st.form_submit_button("Potwierdź wydanie"):
+                odejmij_ilosc(towar_do_edycji, ilosc_usun)
+                st.rerun()
+    else:
+        st.warning("Nie znaleziono towaru pasującego do wyszukiwania.")
 else:
     st.info("Brak towarów w magazynie.")
 
