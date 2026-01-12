@@ -75,17 +75,14 @@ with st.form("form_dodaj", clear_on_submit=True):
 st.header("➖ Wydaj z Magazynu")
 
 if st.session_state['towary']:
-    # --- SEKCA WYSZUKIWANIA ---
-    search_query = st.text_input("🔍 Wyszukaj towar (wpisz nazwę)", key="search_input").lower()
+    search_query = st.text_input("🔍 Wyszukaj towar do wydania (wpisz nazwę)", key="search_input").lower()
     
-    # Filtrowanie listy na podstawie wyszukiwania
     filtered_items = [
         t for t in st.session_state['towary'] 
         if search_query in t['nazwa'].lower() or search_query in t['kategoria'].lower()
     ]
 
     if filtered_items:
-        # Tworzymy listę etykiet dla przefiltrowanych towarów
         opcje_wyswietlane = [
             f"{t['nazwa']} | {t['kategoria']} | Stan: {t['ilosc']}" 
             for t in filtered_items
@@ -97,7 +94,6 @@ if st.session_state['towary']:
             key="wybor_towaru_wydaj"
         )
         
-        # Pobieramy obiekt towaru na podstawie wybranego tekstu
         idx = opcje_wyswietlane.index(wybrany_tekst)
         towar_do_edycji = filtered_items[idx]
         max_do_wydania = towar_do_edycji['ilosc']
@@ -118,21 +114,39 @@ if st.session_state['towary']:
 else:
     st.info("Brak towarów w magazynie.")
 
-# 3. Wyświetlanie Stanu Magazynu
+# 3. Wyświetlanie Stanu Magazynu z Filtrem Kategorii
 st.header("📋 Stan Magazynu")
+
 if st.session_state['towary']:
-    st.dataframe(
-        st.session_state['towary'], 
-        column_config={
-            "nazwa": "Nazwa",
-            "kategoria": "Kategoria",
-            "ilosc": "Ilość",
-            "data_dodania": "Data dodania",
-            "ostatnia_aktualizacja": "Ostatnia zmiana"
-        },
-        use_container_width=True, 
-        hide_index=True
-    )
+    # Lista opcji filtra: "Wszystko" + kategorie
+    opcje_filtra = ["Wszystko"] + KATEGORIE
+    wybrany_filtr = st.selectbox("Pokaż kategorię:", options=opcje_filtra, index=0)
+
+    # Filtrowanie danych do tabeli
+    if wybrany_filtr == "Wszystko":
+        dane_tabela = st.session_state['towary']
+    else:
+        dane_tabela = [t for t in st.session_state['towary'] if t['kategoria'] == wybrany_filtr]
+
+    if dane_tabela:
+        st.dataframe(
+            dane_tabela, 
+            column_config={
+                "nazwa": "Nazwa",
+                "kategoria": "Kategoria",
+                "ilosc": "Ilość",
+                "data_dodania": "Data dodania",
+                "ostatnia_aktualizacja": "Ostatnia zmiana"
+            },
+            use_container_width=True, 
+            hide_index=True
+        )
+        
+        # Podsumowanie pod tabelą
+        suma_sztuk = sum(t['ilosc'] for t in dane_tabela)
+        st.write(f"**Suma sztuk w tym widoku:** {suma_sztuk}")
+    else:
+        st.info(f"Brak towarów w kategorii {wybrany_filtr}.")
 else:
     st.info("Magazyn jest pusty.")
 
