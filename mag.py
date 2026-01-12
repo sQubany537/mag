@@ -44,7 +44,12 @@ def dodaj_towar(nazwa, ilosc, kategoria):
 def odejmij_ilosc(towar_obj, ilosc_do_odjecia):
     teraz = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
-    if ilosc_do_odjecia >= towar_obj['ilosc']:
+    # DODATKOWE ZABEZPIECZENIE LOGICZNE
+    if ilosc_do_odjecia > towar_obj['ilosc']:
+        st.error(f"Błąd: Nie ma takiej ilości towaru! Dostępne: {towar_obj['ilosc']}")
+        return False
+
+    if ilosc_do_odjecia == towar_obj['ilosc']:
         nazwa_temp = towar_obj['nazwa']
         st.session_state['towary'].remove(towar_obj)
         st.success(f"Towar {nazwa_temp} został całkowicie wydany.")
@@ -52,6 +57,7 @@ def odejmij_ilosc(towar_obj, ilosc_do_odjecia):
         towar_obj['ilosc'] -= ilosc_do_odjecia
         towar_obj['ostatnia_aktualizacja'] = teraz
         st.success(f"Wydano {ilosc_do_odjecia} szt. Pozostało: {towar_obj['ilosc']}")
+    return True
 
 # --- Interfejs Użytkownika Streamlit ---
 
@@ -102,13 +108,13 @@ if st.session_state['towary']:
             ilosc_usun = st.number_input(
                 f"Ile sztuk wydać? (Dostępne: {max_do_wydania})", 
                 min_value=1, 
-                max_value=max_do_wydania, 
+                # max_value jest ustawione, ale obsłużymy też błąd ręcznego wpisu
                 step=1
             )
             
             if st.form_submit_button("Potwierdź wydanie"):
-                odejmij_ilosc(towar_do_edycji, ilosc_usun)
-                st.rerun()
+                if odejmij_ilosc(towar_do_edycji, ilosc_usun):
+                    st.rerun()
     else:
         st.warning("Nie znaleziono towaru pasującego do wyszukiwania.")
 else:
@@ -118,11 +124,9 @@ else:
 st.header("📋 Stan Magazynu")
 
 if st.session_state['towary']:
-    # Lista opcji filtra: "Wszystko" + kategorie
     opcje_filtra = ["Wszystko"] + KATEGORIE
     wybrany_filtr = st.selectbox("Pokaż kategorię:", options=opcje_filtra, index=0)
 
-    # Filtrowanie danych do tabeli
     if wybrany_filtr == "Wszystko":
         dane_tabela = st.session_state['towary']
     else:
@@ -141,8 +145,6 @@ if st.session_state['towary']:
             use_container_width=True, 
             hide_index=True
         )
-        
-        # Podsumowanie pod tabelą
         suma_sztuk = sum(t['ilosc'] for t in dane_tabela)
         st.write(f"**Suma sztuk w tym widoku:** {suma_sztuk}")
     else:
