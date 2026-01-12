@@ -18,13 +18,12 @@ KATEGORIE = ["Żywność", "Materiały budowlane", "Mechanika", "Elektronika", "
 
 def dodaj_towar(nazwa, ilosc, kategoria):
     if not nazwa or ilosc <= 0:
-        st.error("Wprowadź poprawną nazwę i ilość (musi być > 0).")
+        st.error("Wprowadź poprawną nazwę i ilość.")
         return
 
     teraz = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # Szukamy, czy towar o tej samej nazwie I kategorii już istnieje
     znaleziono = False
+    
     for towar in st.session_state['towary']:
         if towar['nazwa'].lower() == nazwa.lower() and towar['kategoria'] == kategoria:
             towar['ilosc'] += ilosc
@@ -40,50 +39,70 @@ def dodaj_towar(nazwa, ilosc, kategoria):
             'data_dodania': teraz,
             'ostatnia_aktualizacja': teraz
         })
-    st.success(f"Dodano/Zaktualizowano towar: **{nazwa}** w kategorii **{kategoria}**")
+    st.success(f"Zaktualizowano stan: {nazwa}")
 
 def odejmij_ilosc(indeks, ilosc_do_odjecia):
     teraz = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     towar = st.session_state['towary'][indeks]
     
     if ilosc_do_odjecia >= towar['ilosc']:
+        nazwa_temp = towar['nazwa']
         st.session_state['towary'].pop(indeks)
-        st.success(f"Towar **{towar['nazwa']}** został usunięty.")
+        st.success(f"Towar {nazwa_temp} został całkowicie wydany i usunięty z listy.")
     else:
         towar['ilosc'] -= ilosc_do_odjecia
         towar['ostatnia_aktualizacja'] = teraz
-        st.success(f"Zmniejszono ilość towaru **{towar['nazwa']}**.")
+        st.success(f"Wydano {ilosc_do_odjecia} szt. towaru {towar['nazwa']}. Pozostało: {towar['ilosc']}")
 
 # --- Interfejs Użytkownika Streamlit ---
 
 st.title("📦 Prosty Magazyn Towarów")
 
-# 1. Dodawanie/Aktualizowanie Towaru
+# 1. Dodawanie Towaru
 st.header("➕ Dodaj / Zaktualizuj Towar")
-with st.form("form_dodaj"):
+with st.form("form_dodaj", clear_on_submit=True):
     col1, col2 = st.columns(2)
     with col1:
         nazwa_dodaj = st.text_input("Nazwa Towaru")
         kategoria_dodaj = st.selectbox("Kategoria", options=KATEGORIE)
     with col2:
-        ilosc_dodaj = st.number_input("Ilość do dodania", min_value=1, value=1)
+        ilosc_dodaj = st.number_input("Ilość do dodania", min_value=1, step=1)
     
     if st.form_submit_button("Dodaj do magazynu"):
         dodaj_towar(nazwa_dodaj, ilosc_dodaj, kategoria_dodaj)
+        st.rerun()
 
-# 2. Wydawanie Towaru
+# 2. Wydawanie Towaru (Poprawiona sekcja)
 st.header("➖ Wydaj z Magazynu")
 if st.session_state['towary']:
-    # Tworzymy listę opisową dla selectboxa, żeby odróżnić towary o tej samej nazwie w różnych kategoriach
-    opcje_usun = [f"{t['nazwa']} ({t['kategoria']}) - dostępne: {t['ilosc']}" for t in st.session_state['towary']]
+    # Tworzymy listę opcji do wyboru
+    opcje_wyswietlane = [
+        f"{t['nazwa']} | {t['kategoria']} | Stan: {t['ilosc']}" 
+        for t in st.session_state['towary']
+    ]
     
-    with st.form("form_usun"):
-        wybor_indeks = st.selectbox("Wybierz towar do wydania", options=range(len(opcje_usun)), format_func=lambda x: opcje_usun[x])
-        ilosc_max = st.session_state['towary'][wybor_indeks]['ilosc']
-        ilosc_usun = st.number_input(f"Ile sztuk odjąć?", min_value=1, max_value=ilosc_max, value=1)
+    # Wybór towaru POZA formularzem, aby dynamicznie pobrać max_value
+    wybrany_indeks = st.selectbox(
+        "Wybierz towar do wydania", 
+        options=range(len(opcje_wyswietlane)), 
+        format_func=lambda x: opcje_wyswietlane[x],
+        key="wybor_towaru_wydaj"
+    )
+    
+    # Pobieramy aktualny towar na podstawie wyboru
+    towar_do_edycji = st.session_state['towary'][wybrany_indeks]
+    max_do_wydania = towar_do_edycji['ilosc']
+
+    with st.form("form_wydaj", clear_on_submit=True):
+        ilosc_usun = st.number_input(
+            f"Ile sztuk wydać? (Maksymalnie: {max_do_wydania})", 
+            min_value=1, 
+            max_value=max_do_wydania, 
+            step=1
+        )
         
         if st.form_submit_button("Potwierdź wydanie"):
-            odejmij_ilosc(wybor_indeks, ilosc_usun)
+            odejmij_ilosc(wybrany_indeks, ilosc_usun)
             st.rerun()
 else:
     st.info("Brak towarów w magazynie.")
@@ -91,26 +110,18 @@ else:
 # 3. Wyświetlanie Stanu Magazynu
 st.header("📋 Stan Magazynu")
 if st.session_state['towary']:
-    # Opcja filtrowania po kategorii
-    kat_filtr = st.multiselect("Filtruj wg kategorii:", options=KATEGORIE, default=KATEGORIE)
-    
-    widok_danych = [t for t in st.session_state['towary'] if t['kategoria'] in kat_filtr]
-    
     st.dataframe(
-        widok_danych, 
+        st.session_state['towary'], 
         column_config={
-            "nazwa": "Nazwa Towaru",
+            "nazwa": "Nazwa",
             "kategoria": "Kategoria",
             "ilosc": "Ilość",
-            "data_dodania": "Data Pierwszego Dodania",
-            "ostatnia_aktualizacja": "Ostatnia Zmiana"
+            "data_dodania": "Data dodania",
+            "ostatnia_aktualizacja": "Ostatnia zmiana"
         },
         use_container_width=True, 
         hide_index=True
     )
-    
-    suma_sztuk = sum(t['ilosc'] for t in widok_danych)
-    st.markdown(f"**Łączna ilość sztuk w wybranych kategoriach:** {suma_sztuk}")
 else:
     st.info("Magazyn jest pusty.")
 
