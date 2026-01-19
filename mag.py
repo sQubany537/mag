@@ -5,8 +5,8 @@ from supabase import create_client, Client
 # --- KONFIGURACJA SUPABASE ---
 # Znajdziesz te dane w panelu Supabase: Project Settings -> API
 # Pamiętaj: URL musi zaczynać się od https://
-SUPABASE_URL = "otwxznkrtjlwdbyigynd"
-SUPABASE_KEY = "sb_publishable_N7vU6pwrB7EPLm9bFo-foA_kGHrhyMH"
+SUPABASE_URL = "https://TWOJ_ID.supabase.co"
+SUPABASE_KEY = "TWOJ_KLUCZ_ANON_PUBLIC"
 
 # 1. Inicjalizacja połączenia
 @st.cache_resource
@@ -140,4 +140,23 @@ if lista_towarow:
             column_order=("nazwa", "kategoria", "ilosc", "ostatnia_aktualizacja"),
             column_config={
                 "nazwa": "Nazwa", "kategoria": "Kategoria", 
-                "ilosc": "Ilość", "ostatnia_aktualizacja": "O
+                "ilosc": "Ilość", "ostatnia_aktualizacja": "Ostatnia zmiana"
+            },
+            use_container_width=True, hide_index=True
+        )
+        st.write(f"**Suma sztuk w tym widoku:** {sum(t['ilosc'] for t in widok)}")
+    else:
+        st.write("Brak produktów w tej kategorii.")
+else:
+    st.info("Magazyn jest pusty.")
+
+# Administracja
+st.markdown("---")
+if st.button("🔴 WYCZYŚĆ CAŁY MAGAZYN"):
+    if st.session_state.get('confirm_all', False):
+        supabase.table("magazyn").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+        st.session_state['confirm_all'] = False
+        st.rerun()
+    else:
+        st.warning("Kliknij jeszcze raz, aby usunąć WSZYSTKO trwale.")
+        st.session_state['confirm_all'] = True
