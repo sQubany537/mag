@@ -5,8 +5,8 @@ from supabase import create_client, Client
 # --- KONFIGURACJA SUPABASE ---
 # Znajdziesz te dane w panelu Supabase: Project Settings -> API
 # Pamiętaj: URL musi zaczynać się od https://
-SUPABASE_URL = "https://TWOJ_ID.supabase.co"
-SUPABASE_KEY = "TWOJ_KLUCZ_ANON_PUBLIC"
+SUPABASE_URL = "otwxznkrtjlwdbyigynd"
+SUPABASE_KEY = "sb_publishable_N7vU6pwrB7EPLm9bFo-foA_kGHrhyMH"
 
 # 1. Inicjalizacja połączenia
 @st.cache_resource
