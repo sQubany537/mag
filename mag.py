@@ -3,7 +3,7 @@ from datetime import datetime
 from supabase import create_client, Client
 
 # --- KONFIGURACJA SUPABASE ---
-# Znajdziesz te dane w panelu Supabase: Project Settings -> API
+# Znajdziesz te dane w: Project Settings -> API w panelu Supabase
 SUPABASE_URL = "TWOJ_URL_SUPABASE"
 SUPABASE_KEY = "TWOJ_KLUCZ_API_SUPABASE"
 
@@ -16,14 +16,10 @@ def init_connection():
 try:
     supabase = init_connection()
 except Exception as e:
-    st.error(f"Nie udało się połączyć z bazą danych: {e}")
+    st.error(f"Błąd połączenia z bazą: {e}")
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(
-    page_title="Magazyn Supabase",
-    page_icon="📦",
-    layout="centered"
-)
+st.set_page_config(page_title="Magazyn Supabase", page_icon="📦")
 
 # Lista dostępnych kategorii
 KATEGORIE = ["Żywność", "Materiały budowlane", "Mechanika", "Elektronika", "Odzież"]
@@ -31,7 +27,7 @@ KATEGORIE = ["Żywność", "Materiały budowlane", "Mechanika", "Elektronika", "
 # --- FUNKCJE BAZY DANYCH ---
 
 def pobierz_towary():
-    """Pobiera wszystkie rekordy z bazy."""
+    """Pobiera dane z Supabase."""
     try:
         response = supabase.table("magazyn").select("*").execute()
         return response.data
@@ -39,25 +35,23 @@ def pobierz_towary():
         return []
 
 def dodaj_towar_db(nazwa, ilosc, kategoria):
-    """Dodaje towar lub aktualizuje jego ilość."""
+    """Dodaje lub aktualizuje towar."""
     if not nazwa or ilosc <= 0:
         st.error("Wprowadź poprawną nazwę i ilość.")
         return
 
     teraz = datetime.now().isoformat()
-    
-    # Sprawdzenie czy towar już jest w bazie
+    # Szukamy czy taki towar już istnieje
     existing = supabase.table("magazyn").select("*").eq("nazwa", nazwa).eq("kategoria", kategoria).execute()
     
     if existing.data:
-        # Aktualizacja istniejącego
         nowa_ilosc = existing.data[0]['ilosc'] + ilosc
         supabase.table("magazyn").update({
             "ilosc": nowa_ilosc, 
             "ostatnia_aktualizacja": teraz
         }).eq("id", existing.data[0]['id']).execute()
     else:
-        # Wstawienie zupełnie nowego towaru
+        # Prawidłowe wcięcie po else
         supabase.table("magazyn").insert({
             "nazwa": nazwa.strip(),
             "kategoria": kategoria,
@@ -65,22 +59,21 @@ def dodaj_towar_db(nazwa, ilosc, kategoria):
             "data_dodania": teraz,
             "ostatnia_aktualizacja": teraz
         }).execute()
-    st.success(f"Dodano: {nazwa}")
+    st.success(f"Zaktualizowano: {nazwa}")
 
 def odejmij_ilosc_db(towar_obj, ilosc_do_odjecia):
-    """Wydaje towar z bazy."""
+    """Wydaje towar z bazy z kontrolą ilości."""
     teraz = datetime.now().isoformat()
     
+    # Zabezpieczenie przed wydaniem większej ilości niż dostępna
     if ilosc_do_odjecia > towar_obj['ilosc']:
-        st.error(f"Nie ma tyle towaru! Dostępne: {towar_obj['ilosc']}")
+        st.error(f"Błąd: Nie ma takiej ilości! Dostępne tylko: {towar_obj['ilosc']}")
         return False
 
     if ilosc_do_odjecia == towar_obj['ilosc']:
-        # Usuwamy rekord jeśli stan wynosi 0
         supabase.table("magazyn").delete().eq("id", towar_obj['id']).execute()
         st.success(f"Wydano wszystko: {towar_obj['nazwa']}")
     else:
-        # Zmniejszamy ilość
         nowa_ilosc = towar_obj['ilosc'] - ilosc_do_odjecia
         supabase.table("magazyn").update({
             "ilosc": nowa_ilosc,
@@ -89,83 +82,63 @@ def odejmij_ilosc_db(towar_obj, ilosc_do_odjecia):
         st.success(f"Wydano {ilosc_do_odjecia} szt. {towar_obj['nazwa']}")
     return True
 
-# --- INTERFEJS UŻYTKOWNIKA ---
+# --- INTERFEJS ---
 
 st.title("📦 System Magazynowy Supabase")
-
-# Odświeżenie listy towarów
 lista_towarow = pobierz_towary()
 
-# 1. SEKACJA: DODAWANIE
+# 1. Dodawanie
 st.header("➕ Dodaj Towar")
-with st.form("dodawanie", clear_on_submit=True):
+with st.form("form_dodaj", clear_on_submit=True):
     c1, c2 = st.columns(2)
-    with c1:
-        n_in = st.text_input("Nazwa")
-        k_in = st.selectbox("Kategoria", KATEGORIE)
-    with c2:
-        i_in = st.number_input("Ilość", min_value=1, step=1)
-    
+    n_in = c1.text_input("Nazwa")
+    k_in = c1.selectbox("Kategoria", KATEGORIE)
+    i_in = c2.number_input("Ilość", min_value=1, step=1)
     if st.form_submit_button("Dodaj do magazynu"):
         dodaj_towar_db(n_in, i_in, k_in)
         st.rerun()
 
-# 2. SEKCJA: WYDAWANIE
+# 2. Wydawanie
 st.header("➖ Wydaj Towar")
 if lista_towarow:
-    szukaj = st.text_input("🔍 Wyszukaj (wpisz nazwę)", key="szukaj_wydaj").lower()
+    szukaj = st.text_input("🔍 Wyszukaj towar...", key="szukaj_wydaj").lower()
     przefiltrowane = [t for t in lista_towarow if szukaj in t['nazwa'].lower()]
 
     if przefiltrowane:
         opcje = [f"{t['nazwa']} | {t['kategoria']} | Stan: {t['ilosc']}" for t in przefiltrowane]
-        wybor = st.selectbox("Wybierz towar z listy", options=opcje)
-        
-        idx = opcje.index(wybor)
-        towar_do_wydania = przefiltrowane[idx]
+        wybor = st.selectbox("Wybierz z listy", options=opcje)
+        wybrany_obj = przefiltrowane[opcje.index(wybor)]
 
-        with st.form("wydawanie", clear_on_submit=True):
-            ile_wy = st.number_input("Ile sztuk wydać?", min_value=1, step=1)
+        with st.form("form_wydaj", clear_on_submit=True):
+            ile_wy = st.number_input("Ile wydać?", min_value=1, step=1)
             if st.form_submit_button("Potwierdź wydanie"):
-                if odejmij_ilosc_db(towar_do_wydania, ile_wy):
+                if odejmij_ilosc_db(wybrany_obj, ile_wy):
                     st.rerun()
     else:
         st.warning("Nie znaleziono towaru.")
 else:
     st.info("Magazyn jest pusty.")
 
-# 3. SEKCJA: TABELA STANÓW
-st.header("📋 Aktualny Stan")
+# 3. Tabela
+st.header("📋 Stan Magazynu")
 if lista_towarow:
-    filtr_kat = st.selectbox("Filtruj wg kategorii:", ["Wszystko"] + KATEGORIE)
+    filtr = st.selectbox("Filtruj kategorię:", ["Wszystko"] + KATEGORIE)
+    widok = lista_towarow if filtr == "Wszystko" else [t for t in lista_towarow if t['kategoria'] == filtr]
     
-    dane_tabela = lista_towarow if filtr_kat == "Wszystko" else [t for t in lista_towarow if t['kategoria'] == filtr_kat]
-    
-    if dane_tabela:
-        st.dataframe(
-            dane_tabela,
-            column_order=("nazwa", "kategoria", "ilosc", "data_dodania", "ostatnia_aktualizacja"),
-            column_config={
-                "nazwa": "Nazwa produktu",
-                "kategoria": "Kategoria",
-                "ilosc": "Stan",
-                "data_dodania": "Data wpisu",
-                "ostatnia_aktualizacja": "Ostatnia zmiana"
-            },
-            use_container_width=True,
-            hide_index=True
-        )
-        st.write(f"**Łączna ilość sztuk:** {sum(t['ilosc'] for t in dane_tabela)}")
-else:
-    st.info("Brak towarów do wyświetlenia.")
+    if widok:
+        st.dataframe(widok, use_container_width=True, hide_index=True, 
+                     column_order=("nazwa", "kategoria", "ilosc", "ostatnia_aktualizacja"))
+        st.write(f"**Suma sztuk:** {sum(t['ilosc'] for t in widok)}")
+    else:
+        st.write("Brak produktów w tej kategorii.")
 
-# --- STOPKA / ADMINISTRACJA ---
+# --- ADMIN ---
 st.markdown("---")
-if st.button("🔴 Usuń całą zawartość bazy"):
-    if st.session_state.get('potwierdzenie'):
+if st.button("🔴 WYCZYŚĆ MAGAZYN"):
+    if st.session_state.get('potwierdz'):
         supabase.table("magazyn").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
-        st.success("Baza została wyczyszczona.")
-        st.session_state['potwierdzenie'] = False
+        st.session_state['potwierdz'] = False
         st.rerun()
     else:
-        st.warning("Jesteś pewien? Kliknij ponownie, aby potwierdzić.")
-        st.session_state['potwierdzenie'] = True
+        st.warning("Kliknij drugi raz, aby potwierdzić usunięcie wszystkiego!")
+        st.session_state['potwierdz'] = True
