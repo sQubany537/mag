@@ -4,8 +4,8 @@ from supabase import create_client, Client
 
 # --- KONFIGURACJA SUPABASE ---
 # Znajdziesz te dane w: Project Settings -> API w panelu Supabase
-SUPABASE_URL = "TWOJ_URL_SUPABASE"
-SUPABASE_KEY = "TWOJ_KLUCZ_API_SUPABASE"
+SUPABASE_URL = "otwxznkrtjlwdbyigynd"
+SUPABASE_KEY = "sb_publishable_N7vU6pwrB7EPLm9bFo-foA_kGHrhyMH"
 
 @st.cache_resource
 def init_connection():
